@@ -5,6 +5,8 @@ namespace Bolt\Provider;
 use Bolt\Session\Generator\RandomGenerator;
 use Bolt\Session\Handler\FileHandler;
 use Bolt\Session\Handler\FilesystemHandler;
+use Bolt\Session\Handler\MemcachedHandler;
+use Bolt\Session\Handler\MemcacheHandler;
 use Bolt\Session\Handler\RedisHandler;
 use Bolt\Session\OptionsBag;
 use Bolt\Session\Serializer\NativeSerializer;
@@ -18,8 +20,6 @@ use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Session\Attribute\AttributeBag;
 use Symfony\Component\HttpFoundation\Session\Flash\FlashBag;
 use Symfony\Component\HttpFoundation\Session\Session;
-use Symfony\Component\HttpFoundation\Session\Storage\Handler\MemcachedSessionHandler;
-use Symfony\Component\HttpFoundation\Session\Storage\Handler\MemcacheSessionHandler;
 use Symfony\Component\HttpFoundation\Session\Storage\MetadataBag;
 
 /**
@@ -223,64 +223,15 @@ class SessionServiceProvider implements ServiceProviderInterface
 
     protected function registerMemcacheHandler(Application $app)
     {
-        $app['session.handler_factory.backing_memcache'] = $app->protect(
-            function ($connections) {
-                $memcache = new \Memcache();
-
-                foreach ($connections as $conn) {
-                    $memcache->addServer(
-                        $conn['host'] ?: 'localhost',
-                        $conn['port'] ?: 11211,
-                        $conn['persistent'] ?: false,
-                        $conn['weight'] ?: 0,
-                        $conn['timeout'] ?: 1
-                    );
-                }
-
-                return $memcache;
-            }
-        );
-
-        $app['session.handler_factory.backing_memcached'] = $app->protect(
-            function ($connections) {
-                $memcache = new \Memcached();
-
-                foreach ($connections as $conn) {
-                    $memcache->addServer(
-                        $conn['host'] ?: 'localhost',
-                        $conn['port'] ?: 11211,
-                        $conn['weight'] ?: 0
-                    );
-                }
-
-                return $memcache;
-            }
-        );
-
         $app['session.handler_factory.memcache'] = $app->protect(
-            function ($options, $key = 'memcache') use ($app) {
-                $connections = $this->parseConnections($options, 'localhost', 11211);
-                $memcache = $app['session.handler_factory.backing_' . $key]($connections);
-
-                $handlerOptions = [];
-                if (isset($options['expiretime'])) {
-                    $handlerOptions['expiretime'] = $options['expiretime'];
-                }
-                if (isset($options['prefix'])) {
-                    $handlerOptions['prefix'] = $options['prefix'];
-                }
-
-                if ($key === 'memcache') {
-                    return new MemcacheSessionHandler($memcache, $handlerOptions);
-                } else {
-                    return new MemcachedSessionHandler($memcache, $handlerOptions);
-                }
+            function ($options) use ($app) {
+                return MemcacheHandler::create($options);
             }
         );
 
         $app['session.handler_factory.memcached'] = $app->protect(
             function ($options) use ($app) {
-                return $app['session.handler_factory.memcache']($options, 'memcached');
+                return MemcachedHandler::create($options);
             }
         );
     }
